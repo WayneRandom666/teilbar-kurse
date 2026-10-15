@@ -1,0 +1,12 @@
+{
+  "name": "teilbar-kurse",
+  "version": "0.0.0",
+  "description": "Offizielle Tageskurse des BAZG (Franken für 1 Einheit) für die App Teilbar, werktags aktualisiert",
+  "type": "module",
+  "main": "kurse.mjs",
+  "exports": { ".": "./kurse.mjs", "./kurse.json": "./kurse.json" },
+  "files": ["kurse.json", "kurse.mjs", "README.md"],
+  "keywords": ["bazg", "wechselkurse", "exchange-rates", "chf", "switzerland"],
+  "repository": { "type": "git", "url": "git+https://github.com/WayneRandom666/teilbar-kurse.git" },
+  "license": "MIT"
+}

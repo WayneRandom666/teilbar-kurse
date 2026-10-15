@@ -6,9 +6,15 @@ on:
     - cron: "20 6 * * 1-5"
     - cron: "20 9 * * 1-5"
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Auch ohne neue Kurse auf npm veröffentlichen"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
+  id-token: write   # npm Trusted Publishing (ohne gespeichertes Token)
 
 concurrency:
   group: kurse
@@ -17,26 +23,40 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
       - name: Kurse holen
         run: node scripts/bazg.mjs
       - name: Speichern
+        id: save
         run: |
           if git diff --quiet -- kurse.json kurse.mjs && git ls-files --error-unmatch kurse.json >/dev/null 2>&1; then
-            echo "Nichts Neues"; exit 0
+            echo "Nichts Neues"; echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add kurse.json kurse.mjs
           git commit -m "Kurse $(node -p "require('./kurse.json').date")"
           git push
-      - name: jsDelivr-Zwischenspeicher leeren
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+      - name: Auf npm veröffentlichen
+        if: steps.save.outputs.changed == 'true' || inputs.publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          for f in kurse.mjs kurse.json; do
-            curl -fsS "https://purge.jsdelivr.net/gh/${GITHUB_REPOSITORY}@main/$f" >/dev/null || echo "Purge $f fehlgeschlagen (nicht schlimm)"
+          npm install -g npm@latest >/dev/null
+          D=$(node -p "require('./kurse.json').date.replaceAll('-', '')")
+          npm version --no-git-tag-version "0.${D}.${GITHUB_RUN_NUMBER}${GITHUB_RUN_ATTEMPT}"
+          npm publish --access public
+      - name: jsDelivr-Zwischenspeicher leeren
+        if: steps.save.outputs.changed == 'true' || inputs.publish
+        run: |
+          sleep 30
+          for u in npm/teilbar-kurse@latest/kurse.mjs npm/teilbar-kurse@latest/kurse.json gh/${GITHUB_REPOSITORY}@main/kurse.mjs; do
+            curl -fsS "https://purge.jsdelivr.net/$u" >/dev/null || echo "Purge $u fehlgeschlagen (nicht schlimm)"
           done
