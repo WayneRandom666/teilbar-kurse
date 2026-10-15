@@ -24,11 +24,25 @@ export function parse(xml) {
   return { source: "BAZG", url: "https://www.bazg.admin.ch", date, chf };
 }
 
+// Guard against a broken or tampered feed: the main currencies may not jump by more than 15 % from the last
+// published day, and the date may not go backwards. A real jump of that size would need a manual run.
+export function checkPlausible(data, oldText) {
+  let prev = null;
+  try { prev = JSON.parse(oldText); } catch { return; }
+  if (!prev?.chf) return;
+  if (prev.date && data.date < prev.date) throw new Error(`Datum geht zurück: ${data.date} < ${prev.date}`);
+  for (const c of ["eur", "usd", "gbp", "jpy"]) {
+    const a = prev.chf[c], b = data.chf[c];
+    if (a > 0 && b > 0 && Math.abs(b / a - 1) > 0.15 && process.env.FORCE !== "1") throw new Error(`Unplausibler Sprung bei ${c}: ${a} -> ${b}`);
+  }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const r = await fetch(URL, { headers: { "user-agent": "teilbar-kurse (GitHub Actions)" } });
   if (!r.ok) throw new Error(`BAZG antwortet mit HTTP ${r.status}`);
   const data = parse(await r.text());
   const old = await readFile("kurse.json", "utf8").catch(() => "");
+  checkPlausible(data, old);
   const json = JSON.stringify(data, null, 1) + "\n";
   if (old === json) { console.log("Keine Änderung", data.date); process.exit(0); }
   await writeFile("kurse.json", json);

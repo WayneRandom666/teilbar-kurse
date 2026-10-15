@@ -25,8 +25,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # actions pinned to a commit (supply chain); update deliberately
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           registry-url: "https://registry.npmjs.org"
@@ -49,7 +50,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          npm install -g npm@latest >/dev/null
+          npm install -g npm@11.21.0 >/dev/null   # trusted publishing needs npm >= 11.5.1; pinned on purpose
           D=$(node -p "require('./kurse.json').date.replaceAll('-', '')")
           npm version --no-git-tag-version "0.${D}.${GITHUB_RUN_NUMBER}${GITHUB_RUN_ATTEMPT}"
           npm publish --access public
@@ -57,6 +58,6 @@ jobs:
         if: steps.save.outputs.changed == 'true' || inputs.publish
         run: |
           sleep 30
-          for u in npm/teilbar-kurse@latest/kurse.mjs npm/teilbar-kurse@latest/kurse.json gh/${GITHUB_REPOSITORY}@main/kurse.mjs; do
+          for u in npm/teilbar-kurse@latest/kurse.json npm/teilbar-kurse@latest/kurse.json/+esm npm/teilbar-kurse@latest/kurse.mjs; do
             curl -fsS "https://purge.jsdelivr.net/$u" >/dev/null || echo "Purge $u fehlgeschlagen (nicht schlimm)"
           done
